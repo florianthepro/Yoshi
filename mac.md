@@ -6,12 +6,12 @@ bash -lc 'pkill -f openjarvis_voice.py 2>/dev/null || true; pkill -f openjarvis_
 bash -lc 'set -euo pipefail; T="$HOME/Desktop/openjarvis"; if [ -e "$T" ] && [ -n "$(ls -A "$T" 2>/dev/null)" ]; then T="${T}-$(date +%Y%m%d_%H%M%S)"; fi; echo "Install path: $T"; mkdir -p "$T"; if ! git clone https://github.com/open-jarvis/OpenJarvis.git "$T" >/dev/null 2>&1; then echo "Clone failed or repo exists, using existing $T"; fi; cd "$T"; echo "Create isolated venv .venv..."; python3 -m venv .venv || true; . .venv/bin/activate; pip install --upgrade pip wheel setuptools >/dev/null 2>&1 || true; if [ -f requirements.txt ]; then echo "Installing Python requirements..."; .venv/bin/pip install -r requirements.txt || true; else echo "No requirements.txt found, skipping Python pip install"; fi; if [ -d frontend ]; then if command -v npm >/dev/null 2>&1; then echo "Installing frontend deps..."; (cd frontend && npm install) || true; else echo "npm not found: frontend will not be built"; fi; fi; echo "Writing start.sh (isolated)"; printf "%b" "\x23\x21/bin/bash\ncd \"$T\"\n. .venv/bin/activate\nLOG=\"$T/openjarvis.log\"\nPIDF=\"$T/openjarvis.pid\"\necho Starting OpenJarvis backend... \nif command -v uv >/dev/null 2>&1; then nohup uv run jarvis serve --port 8000 >>\"$LOG\" 2>&1 & echo \$\x21 >\"$PIDF\"; else nohup ./.venv/bin/python -m jarvis serve --port 8000 >>\"$LOG\" 2>&1 & echo \$\x21 >\"$PIDF\"; fi\nif [ -d \"$T/frontend\" ] && command -v npm >/dev/null 2>&1; then (cd frontend && nohup npm run dev >>\"$LOG\" 2>&1 &) ; fi\nsleep 1\nopen \"http://127.0.0.1:5173/\" || true\necho Started. Backend PID: \$(cat \"$PIDF\" 2>/dev/null)\n" > "$T/start.sh"; chmod +x "$T/start.sh"; printf "%b" "\x23\x21/bin/bash\ncd \"$T\"\nPIDF=\"$T/openjarvis.pid\"\necho Stopping OpenJarvis...\nif [ -f \"$PIDF\" ]; then kill \"\$(cat \"$PIDF\")\" 2>/dev/null || true; rm -f \"$PIDF\"; fi\npkill -f \"npm run dev\" 2>/dev/null || true\npkill -f \"uv run jarvis\" 2>/dev/null || true\necho Stopped.\n" > "$T/stop.sh"; chmod +x "$T/stop.sh"; echo "Done. Start: $T/start.sh  Stop: $T/stop.sh"'
 ```
 ```
-bash -lc 'set -euo pipefail; ROOT="$HOME/Desktop/openjarvis"; if [ -e "$ROOT" ] && [ -n "$(ls -A "$ROOT" 2>/dev/null)" ]; then ROOT="${ROOT}-$(date +%Y%m%d_%H%M%S)"; fi; echo "Install path: $ROOT"; mkdir -p "$ROOT"; if ! git clone https://github.com/open-jarvis/OpenJarvis.git "$ROOT" >/dev/null 2>&1; then echo "Clone failed or repo exists, using $ROOT"; fi; cd "$ROOT"; echo "Create isolated venv .venv..."; python3 -m venv .venv || true; . .venv/bin/activate; pip install --upgrade pip wheel setuptools >/dev/null 2>&1 || true; if [ -f requirements.txt ]; then echo "Installing Python requirements..."; .venv/bin/pip install -r requirements.txt || true; else echo "No requirements.txt found, skipping Python pip install"; fi; if [ -d frontend ]; then if command -v npm >/dev/null 2>&1; then echo "Installing frontend deps..."; (cd frontend && npm install) || true; else echo "npm not found: frontend will not be built"; fi; fi; mkdir -p "$ROOT/scripts"; cat > "'"$ROOT"'/scripts/start.sh" <<'SH'
+bash -lc 'set -euo pipefail; ROOT="$HOME/Desktop/openjarvis"; if [ -e "$ROOT" ] && [ -n "$(ls -A "$ROOT" 2>/dev/null)" ]; then ROOT="${ROOT}-$(date +%Y%m%d_%H%M%S)"; fi; echo "Install path: $ROOT"; mkdir -p "$ROOT"; if ! git clone https://github.com/open-jarvis/OpenJarvis.git "$ROOT" >/dev/null 2>&1; then echo "Clone failed or repo exists, using $ROOT"; fi; cd "$ROOT"; python3 -m venv .venv || true; if [ -f ".venv/bin/activate" ]; then . .venv/bin/activate; fi; pip install --upgrade pip wheel setuptools >/dev/null 2>&1 || true; if [ -f requirements.txt ]; then echo "Installing Python requirements..."; .venv/bin/pip install -r requirements.txt || true; else echo "No requirements.txt found, skipping Python pip install"; fi; if [ -d frontend ]; then if command -v npm >/dev/null 2>&1; then echo "Installing frontend deps..."; (cd frontend && npm install) || true; else echo "npm not found: frontend will not be built"; fi; fi; mkdir -p "$ROOT/scripts"; cat > "$ROOT/scripts/start.sh" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 BASE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$BASE_DIR"
-. .venv/bin/activate
+if [ -f ".venv/bin/activate" ]; then . .venv/bin/activate; fi
 LOG="$BASE_DIR/openjarvis.log"
 PIDF="$BASE_DIR/openjarvis.pid"
 echo "Starting OpenJarvis backend..."
@@ -27,7 +27,8 @@ sleep 1
 open "http://127.0.0.1:5173/" || true
 echo "Started. Backend PID: $(cat "$PIDF" 2>/dev/null)"
 SH
-chmod +x "'"$ROOT"'/scripts/start.sh"; cat > "'"$ROOT"'/scripts/stop.sh" <<'SH2'
+chmod +x "$ROOT/scripts/start.sh"
+cat > "$ROOT/scripts/stop.sh" <<'SH2'
 #!/usr/bin/env bash
 set -euo pipefail
 BASE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -41,5 +42,5 @@ pkill -f "npm run dev" 2>/dev/null || true
 pkill -f "uv run jarvis" 2>/dev/null || true
 echo "Stopped."
 SH2
-chmod +x "'"$ROOT"'/scripts/stop.sh"; echo "Done. Start: '"$ROOT"'/scripts/start.sh  Stop: '"$ROOT"'/scripts/stop.sh"'
-
+chmod +x "$ROOT/scripts/stop.sh"
+echo "Done. Start: $ROOT/scripts/start.sh  Stop: $ROOT/scripts/stop.sh"'
