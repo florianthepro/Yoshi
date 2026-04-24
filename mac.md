@@ -3,54 +3,5 @@ reset:
 bash -lc 'pkill -f openjarvis_voice.py 2>/dev/null || true; pkill -f openjarvis_voice_wrapper.sh 2>/dev/null || true; sleep 0.2; rm -rf "$HOME/Desktop/openjarvis" "$HOME/openjarvis" "$HOME/openjarvis_voice.py" "$HOME/openjarvis-voice.log" "$HOME/openjarvis-voice.pid" "$HOME/start_with_voice.sh" "$HOME/stop_with_voice.sh" "$HOME/start_foreground_with_voice.sh" "$HOME/openjarvis_voice_wrapper.sh" "$HOME/openjarvis_voice_wake_patch.py" "$HOME/.openjarvis_voice_venv"; echo "reset-openjarvis: done"'
 ```
 ```
-bash -lc 'T="$HOME/Desktop/openjarvis"; if [ -e "$T" ] && [ -n "$(ls -A "$T" 2>/dev/null)" ]; then T="${T}-$(date +%Y%m%d_%H%M%S)"; fi; mkdir -p "$T/data"; python3 -m venv "$T/venv"; "$T/venv/bin/python" -m pip install --upgrade pip >/dev/null 2>&1 || true; "$T/venv/bin/python" -m pip install flask requests >/dev/null 2>&1 || true; cat > "$T/data/openjarvis.py" <<'"PY"'
-from flask import Flask, render_template_string
-app = Flask(__name__)
-TEMPLATE = """<!doctype html>
-<html>
-  <head><meta charset="utf-8"><title>OpenJarvis</title></head>
-  <body>
-    <h1>OpenJarvis UI</h1>
-    <p>This is the isolated OpenJarvis placeholder UI. Replace this file with your real app when ready.</p>
-  </body>
-</html>
-"""
-@app.route("/")
-def index():
-    return render_template_string(TEMPLATE)
-if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000)
-PY
-cat > "$T/start.sh" <<'"SH"'
-#!/usr/bin/env bash
-BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
-VENV="$BASE_DIR/venv"
-SCRIPT="$BASE_DIR/data/openjarvis.py"
-LOG="$BASE_DIR/openjarvis.log"
-PID="$BASE_DIR/openjarvis.pid"
-if [ ! -x "$VENV/bin/python" ]; then
-  echo "Venv missing at $VENV"
-  exit 1
-fi
-nohup "$VENV/bin/python" "$SCRIPT" >>"$LOG" 2>&1 & echo $! >"$PID"
-sleep 0.8
-open "http://127.0.0.1:5000/"
-echo "started (pid $(cat "$PID"))"
-SH
-chmod +x "$T/start.sh"
-cat > "$T/stop.sh" <<'"SH2"'
-#!/usr/bin/env bash
-BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
-PID="$BASE_DIR/openjarvis.pid"
-if [ -f "$PID" ]; then
-  kill "$(cat "$PID")" 2>/dev/null || true
-  rm -f "$PID"
-  echo "stopped"
-else
-  pkill -f "$BASE_DIR/data/openjarvis.py" 2>/dev/null || true
-  echo "stopped (pkill)"
-fi
-SH2
-chmod +x "$T/stop.sh"
-echo "install-openjarvis: created at $T; start with: $T/start.sh"
+bash -lc $'set -euo pipefail; T="$HOME/Desktop/openjarvis"; if [ -e "$T" ] && [ -n "$(ls -A "$T" 2>/dev/null)" ]; then T="${T}-$(date +%Y%m%d_%H%M%S)"; fi; echo "Installing OpenJarvis into: $T"; git clone https://github.com/open-jarvis/OpenJarvis.git "$T" || (echo "clone failed, trying update"; cd "$T" && git pull); cd "$T"; echo "Checking Homebrew..."; if ! command -v brew >/dev/null 2>&1; then /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"; fi; echo "Ensuring Node (for frontend)..."; brew install node >/dev/null 2>&1 || true; echo "Ensuring Rust (for native extension)..."; if ! command -v rustc >/dev/null 2>&1; then curl --proto \"=https\" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y; source \"$HOME/.cargo/env\" || true; fi; echo "Ensuring uv (package manager used by OpenJarvis)..."; if ! command -v uv >/dev/null 2>&1; then curl -LsSf https://astral.sh/uv/install.sh | sh; fi; echo "Installing Python deps (uv sync --extra server)..."; uv sync --extra server || true; echo "Building Rust extension (best-effort)..."; uv run maturin develop -m rust/crates/openjarvis-python/Cargo.toml || true; echo "Installing frontend deps..."; cd frontend && npm install || true; cd "$T"; echo "Creating start.sh and stop.sh"; printf "%s\n" "#!/usr/bin/env bash" "BASE_DIR=\"\$(cd \"\$(dirname \"\$0\")\" && pwd)\"" "cd \"\$BASE_DIR\"" "echo 'Starting backend (jarvis) and frontend (dev)'; uv run jarvis serve --port 8000 >/dev/null 2>&1 & echo \$! > \"\$BASE_DIR/jarvis.pid\"; (cd frontend && npm run dev >/dev/null 2>&1 &) ; sleep 1; open \"http://localhost:5173/\"; echo 'Started. Backend PID:' \$(cat \"\$BASE_DIR/jarvis.pid\")" > "$T/start.sh"; chmod +x "$T/start.sh"; printf "%s\n" "#!/usr/bin/env bash" "BASE_DIR=\"\$(cd \"\$(dirname \"\$0\")\" && pwd)\"" "echo 'Stopping OpenJarvis...'; [ -f \"\$BASE_DIR/jarvis.pid\" ] && kill \"\$(cat \"\$BASE_DIR/jarvis.pid\")\" 2>/dev/null || true; rm -f \"\$BASE_DIR/jarvis.pid\"; pkill -f \"npm run dev\" 2>/dev/null || true; pkill -f \"uv run jarvis\" 2>/dev/null || true; echo 'Stopped.'" > "$T/stop.sh"; chmod +x "$T/stop.sh"; echo "Done. Start with: $T/start.sh; Stop with: $T/stop.sh"'
 ```
